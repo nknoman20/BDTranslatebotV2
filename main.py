@@ -53,8 +53,8 @@ def translate_command(update, context):
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 dispatcher.add_handler(CommandHandler("translate", translate_command))
 
-# Webhook endpoint
-@app.route(f"/{TOKEN}", methods=["POST"])
+# Webhook endpoint → changed here to root '/'
+@app.route("/", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
