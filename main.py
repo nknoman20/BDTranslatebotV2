@@ -3,20 +3,19 @@ import logging
 from flask import Flask, request
 from telegram import Bot, Update
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 from queue import Queue
 
-# Logging
+# Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Token & bot init
+# Token & Bot Init
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
     raise RuntimeError("BOT_TOKEN environment variable সেট নাই!")
 bot = Bot(token=TOKEN)
 app = Flask(__name__)
-translator = Translator()
 
 # Dispatcher
 update_queue = Queue()
@@ -24,15 +23,15 @@ dispatcher = Dispatcher(bot, update_queue, workers=4, use_context=True)
 
 # Handlers
 def start(update, context):
-    update.message.reply_text("👋 স্বাগতম! আপনি এখন থেকে যে কোনো ভাষা অনুবাদ করতে পারেন!")
+    update.message.reply_text("👋 স্বাগতম! আপনি যেকোনো টেক্সট পাঠান, আমি বাংলায় বা ইংরেজিতে অনুবাদ করে দিব।")
 
 def handle_message(update, context):
     text = update.message.text
-    lang = translator.detect(text).lang
-    dest_lang = 'bn' if lang == 'en' else 'en'
     try:
-        translated = translator.translate(text, dest=dest_lang).text
-        update.message.reply_text(f"{translated}")
+        # detect language and translate
+        target_lang = 'bn' if GoogleTranslator(source='auto', target='bn').translate(text) != text else 'en'
+        translated = GoogleTranslator(source='auto', target=target_lang).translate(text)
+        update.message.reply_text(translated)
     except Exception as e:
         update.message.reply_text("❌ অনুবাদ ব্যর্থ হয়েছে।")
         logger.error(f"Translation error: {e}")
@@ -42,16 +41,15 @@ def translate_command(update, context):
         update.message.reply_text("⚠️ দয়া করে /translate এর পরে কিছু লিখুন।\nউদাহরণ: `/translate Hello`", parse_mode="Markdown")
         return
     text = ' '.join(context.args)
-    lang = translator.detect(text).lang
-    dest_lang = 'bn' if lang == 'en' else 'en'
     try:
-        translated = translator.translate(text, dest=dest_lang).text
+        target_lang = 'bn' if GoogleTranslator(source='auto', target='bn').translate(text) != text else 'en'
+        translated = GoogleTranslator(source='auto', target=target_lang).translate(text)
         update.message.reply_text(f"🔁 {translated}")
     except Exception as e:
         update.message.reply_text("❌ অনুবাদ ব্যর্থ হয়েছে।")
         logger.error(f"Command translation error: {e}")
 
-# Add Handlers
+# Handlers Register
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("translate", translate_command))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
@@ -63,7 +61,7 @@ def webhook():
     dispatcher.process_update(update)
     return "OK", 200
 
-# Health check
+# Health route
 @app.route("/", methods=["GET"])
 def index():
     return "BD Translate Bot is live!", 200
